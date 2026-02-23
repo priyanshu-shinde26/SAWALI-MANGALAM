@@ -3,26 +3,38 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
+const FALLBACK_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB-aR1qYUaey4CWSwvj9ZVzixNUcjMcQ1c",
+  authDomain: "sawali-mangalam.firebaseapp.com",
+  projectId: "sawali-mangalam",
+  storageBucket: "sawali-mangalam.firebasestorage.app",
+  messagingSenderId: "301604288489",
+  appId: "1:301604288489:web:00f720571c38dc9f4a3d78",
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "missing-api-key",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || FALLBACK_FIREBASE_CONFIG.apiKey,
   authDomain:
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "missing-auth-domain",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "missing-project-id",
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
+    FALLBACK_FIREBASE_CONFIG.authDomain,
+  projectId:
+    import.meta.env.VITE_FIREBASE_PROJECT_ID || FALLBACK_FIREBASE_CONFIG.projectId,
   storageBucket:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "missing-storage-bucket",
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
+    FALLBACK_FIREBASE_CONFIG.storageBucket,
   messagingSenderId:
     import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    "missing-messaging-sender-id",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "missing-app-id",
+    FALLBACK_FIREBASE_CONFIG.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || FALLBACK_FIREBASE_CONFIG.appId,
 };
 
 const envValueMap = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: firebaseConfig.apiKey,
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  storageBucket: firebaseConfig.storageBucket,
+  messagingSenderId: firebaseConfig.messagingSenderId,
+  appId: firebaseConfig.appId,
 };
 
 export const firebaseMissingKeys = Object.entries(envValueMap)
@@ -35,7 +47,7 @@ if (!firebaseConfigReady) {
   console.warn(
     `Firebase env is incomplete. Missing: ${firebaseMissingKeys.join(
       ", "
-    )}. Add these in .env.`
+    )}.`
   );
 }
 
