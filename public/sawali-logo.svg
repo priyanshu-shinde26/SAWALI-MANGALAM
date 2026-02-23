@@ -1,0 +1,34 @@
+<svg width="1100" height="700" viewBox="0 0 1100 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1100" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8F1736"/>
+      <stop offset="1" stop-color="#500B1D"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="180" y1="150" x2="920" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE28A"/>
+      <stop offset="1" stop-color="#DD9E1D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1100" height="700" fill="url(#bg)"/>
+  <g stroke="url(#gold)" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M180 290L550 120L920 290H180Z"/>
+    <path d="M230 290V420M870 290V420"/>
+    <path d="M300 290V420M800 290V420"/>
+    <path d="M380 290V420M720 290V420"/>
+    <path d="M460 290V420M640 290V420"/>
+    <path d="M250 430H850"/>
+    <path d="M410 430C410 395 690 395 690 430"/>
+    <path d="M550 130V80"/>
+    <path d="M550 80C585 80 605 58 605 30"/>
+    <path d="M605 30L640 45L605 60V30Z" fill="url(#gold)"/>
+    <circle cx="550" cy="360" r="50"/>
+    <path d="M500 370H600"/>
+    <path d="M525 330L550 300L575 330"/>
+  </g>
+  <text x="550" y="545" text-anchor="middle" fill="url(#gold)" font-family="Cinzel, serif" font-size="90" font-weight="700">
+    SAWALI MANGALAM
+  </text>
+  <text x="550" y="615" text-anchor="middle" fill="url(#gold)" font-family="Poppins, sans-serif" font-size="46" font-weight="600" letter-spacing="4">
+    HALL FOR WEDDINGS &amp; EVENTS
+  </text>
+</svg>
