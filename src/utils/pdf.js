@@ -19,6 +19,42 @@ const formatPdfCurrency = (value) => {
   }).format(amount)}`;
 };
 
+const toNonNegativeNumber = (value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
+};
+
+const getItemLineTotal = (item) => {
+  const rawLineTotal = Number(item?.lineTotal);
+  if (Number.isFinite(rawLineTotal) && rawLineTotal >= 0) {
+    return rawLineTotal;
+  }
+
+  return (
+    toNonNegativeNumber(item?.quantityGiven) * toNonNegativeNumber(item?.unitPrice)
+  );
+};
+
+const getDistributionFinancials = (record) => {
+  const calculatedTotal = (record.items || []).reduce(
+    (sum, item) => sum + getItemLineTotal(item),
+    0
+  );
+
+  const rawTotal = Number(record.totalPrice);
+  const totalBill =
+    Number.isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : calculatedTotal;
+  const received = toNonNegativeNumber(record.advanceAmount);
+
+  const rawPending = Number(record.remainingAmount);
+  const pending =
+    Number.isFinite(rawPending) && rawPending >= 0
+      ? rawPending
+      : Math.max(0, totalBill - received);
+
+  return { totalBill, received, pending };
+};
+
 const toPngDataUrl = (url) =>
   new Promise((resolve) => {
     const image = new Image();
@@ -200,11 +236,49 @@ export const exportDistributionStatementPdf = async (record) => {
       font: fontFamily,
       fontStyle: "bold",
     },
-    head: [["Item Name", "Quantity Given"]],
-    body: (record.items || []).map((item) => [
-      item.itemName || "-",
-      item.quantityGiven || 0,
-    ]),
+    head: [["Item Name", "Quantity", "Unit Price", "Amount"]],
+    body: (record.items || []).map((item) => {
+      const quantity = toNonNegativeNumber(item?.quantityGiven);
+      const unitPrice = toNonNegativeNumber(item?.unitPrice);
+      const lineTotal = getItemLineTotal(item);
+
+      return [
+        item.itemName || "-",
+        quantity,
+        formatPdfCurrency(unitPrice),
+        formatPdfCurrency(lineTotal),
+      ];
+    }),
+    styles: {
+      font: fontFamily,
+      fontSize: 10,
+      cellPadding: 3,
+    },
+    alternateRowStyles: {
+      fillColor: [255, 248, 248],
+    },
+  });
+
+  const totals = getDistributionFinancials(record);
+  const summaryStartY = (doc.lastAutoTable?.finalY || itemsStartY + 30) + 6;
+  doc.setFont(fontFamily, "bold");
+  doc.setFontSize(11);
+  doc.text("Bill Summary", 14, summaryStartY);
+
+  autoTable(doc, {
+    startY: summaryStartY + 3,
+    theme: "grid",
+    headStyles: {
+      fillColor: [143, 23, 54],
+      font: fontFamily,
+      fontStyle: "bold",
+    },
+    head: [["Bill Section", "Amount"]],
+    body: [
+      ["Total Bill", formatPdfCurrency(totals.totalBill)],
+      ["Received", formatPdfCurrency(totals.received)],
+      ["Pending", formatPdfCurrency(totals.pending)],
+    ],
     styles: {
       font: fontFamily,
       fontSize: 10,
