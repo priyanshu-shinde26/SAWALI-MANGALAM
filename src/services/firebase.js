@@ -3,42 +3,27 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
-const FALLBACK_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyB-aR1qYUaey4CWSwvj9ZVzixNUcjMcQ1c",
-  authDomain: "sawali-mangalam.firebaseapp.com",
-  projectId: "sawali-mangalam",
-  storageBucket: "sawali-mangalam.firebasestorage.app",
-  messagingSenderId: "301604288489",
-  appId: "1:301604288489:web:00f720571c38dc9f4a3d78",
+const firebaseEnvMap = {
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || FALLBACK_FIREBASE_CONFIG.apiKey,
-  authDomain:
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ||
-    FALLBACK_FIREBASE_CONFIG.authDomain,
-  projectId:
-    import.meta.env.VITE_FIREBASE_PROJECT_ID || FALLBACK_FIREBASE_CONFIG.projectId,
-  storageBucket:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
-    FALLBACK_FIREBASE_CONFIG.storageBucket,
-  messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    FALLBACK_FIREBASE_CONFIG.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || FALLBACK_FIREBASE_CONFIG.appId,
+  apiKey: firebaseEnvMap.VITE_FIREBASE_API_KEY,
+  authDomain: firebaseEnvMap.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: firebaseEnvMap.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: firebaseEnvMap.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: firebaseEnvMap.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: firebaseEnvMap.VITE_FIREBASE_APP_ID,
 };
 
-const envValueMap = {
-  apiKey: firebaseConfig.apiKey,
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket,
-  messagingSenderId: firebaseConfig.messagingSenderId,
-  appId: firebaseConfig.appId,
-};
-
-export const firebaseMissingKeys = Object.entries(envValueMap)
-  .filter(([, value]) => !value)
+export const firebaseMissingKeys = Object.entries(firebaseEnvMap)
+  .filter(([, value]) => !String(value || "").trim())
   .map(([key]) => key);
 
 export const firebaseConfigReady = firebaseMissingKeys.length === 0;
@@ -51,15 +36,15 @@ if (!firebaseConfigReady) {
   );
 }
 
-const app = initializeApp(firebaseConfig);
+const app = firebaseConfigReady ? initializeApp(firebaseConfig) : null;
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
 
 // Analytics is optional and should never block app rendering.
 if (
+  app &&
   typeof window !== "undefined" &&
-  firebaseConfigReady &&
   import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 ) {
   isSupported()

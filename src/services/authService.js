@@ -6,11 +6,16 @@ import {
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db, firebaseConfigReady, firebaseMissingKeys } from "./firebase";
 
-export const ADMIN_EMAIL = "sawali2026@gmail.com";
-export const ADMIN_PASSWORD = "sawali2026";
+export const ADMIN_EMAIL = String(import.meta.env.VITE_ADMIN_EMAIL || "").trim();
+export const adminConfigReady = Boolean(ADMIN_EMAIL);
+const normalizedAdminEmail = ADMIN_EMAIL.toLowerCase();
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+
+export const isAuthorizedAdminEmail = (email) =>
+  !adminConfigReady || normalizeEmail(email) === normalizedAdminEmail;
 
 export const loginAdmin = async (email, password) => {
-  if (!firebaseConfigReady) {
+  if (!firebaseConfigReady || !auth || !db) {
     throw new Error(
       `Firebase is not configured. Missing .env keys: ${firebaseMissingKeys.join(
         ", "
@@ -18,20 +23,14 @@ export const loginAdmin = async (email, password) => {
     );
   }
 
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
 
-  if (
-    normalizedEmail !== ADMIN_EMAIL.toLowerCase() ||
-    password !== ADMIN_PASSWORD
-  ) {
-    throw new Error("Invalid admin credentials.");
+  const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+
+  if (!isAuthorizedAdminEmail(credential.user.email)) {
+    await signOut(auth);
+    throw new Error("Unauthorized account for admin access.");
   }
-
-  const credential = await signInWithEmailAndPassword(
-    auth,
-    normalizedEmail,
-    password
-  );
 
   try {
     await setDoc(
@@ -51,10 +50,10 @@ export const loginAdmin = async (email, password) => {
   return credential;
 };
 
-export const logoutAdmin = () => signOut(auth);
+export const logoutAdmin = () => (auth ? signOut(auth) : Promise.resolve());
 
 export const watchAuthState = (callback) => {
-  if (!firebaseConfigReady) {
+  if (!firebaseConfigReady || !auth) {
     callback(null);
     return () => {};
   }

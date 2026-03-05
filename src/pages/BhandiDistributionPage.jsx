@@ -355,17 +355,27 @@ const BhandiDistributionPage = () => {
   };
 
   const onDeleteDistribution = async (record) => {
-    const distributionLabel = record.personName || record.functionName || record.id;
+    const distributionId = String(record.id || record.distributionId || "").trim();
+    if (!distributionId) {
+      setMessage({
+        type: "error",
+        text: "Could not delete distribution because distribution ID is missing.",
+      });
+      return;
+    }
+
+    const distributionLabel =
+      record.personName || record.functionName || distributionId;
     const shouldDelete = window.confirm(
       `Delete distribution "${distributionLabel}"? This action cannot be undone.`
     );
     if (!shouldDelete) return;
 
     try {
-      setDeletingDistributionId(record.id);
-      await deleteDistribution(record.id);
+      setDeletingDistributionId(distributionId);
+      await deleteDistribution(distributionId);
       setMessage({ type: "success", text: "Distribution deleted successfully." });
-      if (editingDistributionId === record.id) {
+      if (editingDistributionId === distributionId) {
         resetForm();
       }
     } catch (error) {
@@ -765,9 +775,13 @@ const BhandiDistributionPage = () => {
           ) : (
             filteredRecords.map((record) => {
               const financials = getRecordFinancials(record);
+              const recordId = String(record.id || record.distributionId || "").trim();
 
               return (
-                <article key={record.id} className="card">
+                <article
+                  key={recordId || `${record.personName || "distribution"}-${record.eventDate || ""}`}
+                  className="card"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h3 className="font-semibold text-maroon-900">{record.personName}</h3>
@@ -815,10 +829,10 @@ const BhandiDistributionPage = () => {
                         type="button"
                         className="btn btn-ghost text-rose-700 hover:bg-rose-50"
                         onClick={() => onDeleteDistribution(record)}
-                        disabled={deletingDistributionId === record.id}
+                        disabled={deletingDistributionId === recordId}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        {deletingDistributionId === record.id ? "Deleting..." : "Delete"}
+                        {deletingDistributionId === recordId ? "Deleting..." : "Delete"}
                       </button>
                     </div>
                   </div>

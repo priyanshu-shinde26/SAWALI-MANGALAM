@@ -198,15 +198,24 @@ const HallBookingsPage = () => {
   };
 
   const onDeleteBooking = async (booking) => {
-    const bookingLabel = booking.functionName || booking.personName || booking.id;
+    const bookingId = String(booking.id || booking.bookingId || "").trim();
+    if (!bookingId) {
+      setMessage({
+        type: "error",
+        text: "Could not delete booking because booking ID is missing.",
+      });
+      return;
+    }
+
+    const bookingLabel = booking.functionName || booking.personName || bookingId;
     const shouldDelete = window.confirm(
       `Delete booking "${bookingLabel}"? This action cannot be undone.`
     );
     if (!shouldDelete) return;
 
     try {
-      setDeletingBookingId(booking.id);
-      await deleteBooking(booking.id);
+      setDeletingBookingId(bookingId);
+      await deleteBooking(bookingId);
       setMessage({ type: "success", text: "Booking deleted successfully." });
     } catch (error) {
       setMessage({

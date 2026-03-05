@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { loginAdmin } from "../services/authService";
-import { firebaseConfigReady, firebaseMissingKeys } from "../services/firebase";
+import { adminConfigReady, loginAdmin } from "../services/authService";
+import { firebaseMissingKeys } from "../services/firebase";
 import { useAuth } from "../context/AuthContext";
 
 const LoginPage = () => {
@@ -13,6 +13,7 @@ const LoginPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const setupMissingKeys = [...firebaseMissingKeys];
 
   if (user) {
     return <Navigate to="/hall-bookings" replace />;
@@ -53,10 +54,16 @@ const LoginPage = () => {
         </div>
 
         <div className="p-5 md:p-6">
-          {!firebaseConfigReady ? (
+          {setupMissingKeys.length > 0 ? (
             <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Firebase setup incomplete. Missing `.env` keys:{" "}
-              {firebaseMissingKeys.join(", ")}.
+              Setup incomplete. Missing `.env` keys:{" "}
+              {setupMissingKeys.join(", ")}.
+            </p>
+          ) : null}
+          {!adminConfigReady ? (
+            <p className="mb-3 rounded-lg bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+              Optional hardening: set `VITE_ADMIN_EMAIL` in `.env` to restrict admin
+              access to one email.
             </p>
           ) : null}
 

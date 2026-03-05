@@ -18,8 +18,8 @@ import { overlaps } from "../utils/time";
 const BOOKING_COLLECTION = "hallBookings";
 
 const toBookingModel = (snap) => ({
-  id: snap.id,
   ...snap.data(),
+  id: snap.id,
 });
 
 const bookingQuery = query(
@@ -199,15 +199,38 @@ export const receivePendingPayment = async (bookingId, receivedAmount) => {
 };
 
 export const deleteBooking = async (bookingId) => {
-  const bookingRef = doc(db, BOOKING_COLLECTION, bookingId);
+  const normalizedBookingId = String(bookingId || "").trim();
+  if (!normalizedBookingId) {
+    throw new Error("Booking ID is missing.");
+  }
 
-  const paymentQuery = query(
-    collection(db, "payments"),
-    where("bookingId", "==", bookingId)
+  const bookingRef = doc(db, BOOKING_COLLECTION, normalizedBookingId);
+  const bookingSnap = await getDoc(bookingRef);
+
+  const bookingIdCandidates = [normalizedBookingId];
+  if (bookingSnap.exists()) {
+    const legacyBookingId = String(bookingSnap.data().bookingId || "").trim();
+    if (legacyBookingId && legacyBookingId !== normalizedBookingId) {
+      bookingIdCandidates.push(legacyBookingId);
+    }
+  }
+
+  const paymentSnaps = await Promise.all(
+    bookingIdCandidates.map((candidateId) =>
+      getDocs(query(collection(db, "payments"), where("bookingId", "==", candidateId)))
+    )
   );
-  const paymentSnap = await getDocs(paymentQuery);
 
-  const deleteTasks = paymentSnap.docs.map((paymentDoc) => deleteDoc(paymentDoc.ref));
+  const paymentRefsByPath = new Map();
+  paymentSnaps.forEach((snapshot) => {
+    snapshot.docs.forEach((paymentDoc) => {
+      paymentRefsByPath.set(paymentDoc.ref.path, paymentDoc.ref);
+    });
+  });
+
+  const deleteTasks = Array.from(paymentRefsByPath.values()).map((paymentRef) =>
+    deleteDoc(paymentRef)
+  );
   deleteTasks.push(deleteDoc(bookingRef));
 
   await Promise.all(deleteTasks);

@@ -1,5 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { ADMIN_EMAIL, watchAuthState, logoutAdmin } from "../services/authService";
+import {
+  isAuthorizedAdminEmail,
+  watchAuthState,
+  logoutAdmin,
+} from "../services/authService";
 
 const AuthContext = createContext({
   user: null,
@@ -18,7 +22,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      if (firebaseUser.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      if (!isAuthorizedAdminEmail(firebaseUser.email)) {
         await logoutAdmin();
         setUser(null);
         setLoading(false);

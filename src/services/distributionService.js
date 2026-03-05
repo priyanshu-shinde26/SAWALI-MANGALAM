@@ -19,8 +19,8 @@ const DISTRIBUTION_COLLECTION = "bhandiDistribution";
 const PAYMENT_COLLECTION = "payments";
 
 const toDistributionModel = (snap) => ({
-  id: snap.id,
   ...snap.data(),
+  id: snap.id,
 });
 
 const distributionQuery = query(
@@ -280,11 +280,41 @@ export const receiveDistributionPendingPayment = async (
 };
 
 export const deleteDistribution = async (distributionId) => {
-  const paymentQuery = getDistributionPaymentQuery(distributionId);
-  const paymentSnap = await getDocs(paymentQuery);
+  const normalizedDistributionId = String(distributionId || "").trim();
+  if (!normalizedDistributionId) {
+    throw new Error("Distribution ID is missing.");
+  }
 
-  const deleteTasks = paymentSnap.docs.map((paymentDoc) => deleteDoc(paymentDoc.ref));
-  deleteTasks.push(deleteDoc(doc(db, DISTRIBUTION_COLLECTION, distributionId)));
+  const distributionRef = doc(db, DISTRIBUTION_COLLECTION, normalizedDistributionId);
+  const distributionSnap = await getDoc(distributionRef);
+
+  const distributionIdCandidates = [normalizedDistributionId];
+  if (distributionSnap.exists()) {
+    const legacyDistributionId = String(
+      distributionSnap.data().distributionId || ""
+    ).trim();
+    if (legacyDistributionId && legacyDistributionId !== normalizedDistributionId) {
+      distributionIdCandidates.push(legacyDistributionId);
+    }
+  }
+
+  const paymentSnaps = await Promise.all(
+    distributionIdCandidates.map((candidateId) =>
+      getDocs(getDistributionPaymentQuery(candidateId))
+    )
+  );
+
+  const paymentRefsByPath = new Map();
+  paymentSnaps.forEach((snapshot) => {
+    snapshot.docs.forEach((paymentDoc) => {
+      paymentRefsByPath.set(paymentDoc.ref.path, paymentDoc.ref);
+    });
+  });
+
+  const deleteTasks = Array.from(paymentRefsByPath.values()).map((paymentRef) =>
+    deleteDoc(paymentRef)
+  );
+  deleteTasks.push(deleteDoc(distributionRef));
 
   await Promise.all(deleteTasks);
 };
