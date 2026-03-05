@@ -13,20 +13,30 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, firebaseConfigReady, firebaseMissingKeys } from "./firebase";
 
 const DISTRIBUTION_COLLECTION = "bhandiDistribution";
 const PAYMENT_COLLECTION = "payments";
+
+const getFirebaseConfigError = () =>
+  new Error(
+    `Firebase is not configured. Missing .env keys: ${firebaseMissingKeys.join(
+      ", "
+    )}.`
+  );
+
+const getDb = () => {
+  if (!db || !firebaseConfigReady) {
+    throw getFirebaseConfigError();
+  }
+
+  return db;
+};
 
 const toDistributionModel = (snap) => ({
   ...snap.data(),
   id: snap.id,
 });
-
-const distributionQuery = query(
-  collection(db, DISTRIBUTION_COLLECTION),
-  orderBy("eventDate", "desc")
-);
 
 const stableHash = (value) => {
   let hash = 0;
@@ -50,6 +60,8 @@ const slugify = (value) => {
 };
 
 const syncItemCatalog = async (items) => {
+  const database = getDb();
+
   const tasks = items.map((item) => {
     const itemName = item.itemName?.trim();
     if (!itemName) return null;
@@ -57,7 +69,7 @@ const syncItemCatalog = async (items) => {
     const itemDocId = slugify(itemName);
     if (!itemDocId) return null;
     return setDoc(
-      doc(db, "items", itemDocId),
+      doc(database, "items", itemDocId),
       {
         itemName,
         updatedAt: serverTimestamp(),
@@ -104,7 +116,7 @@ const getAmounts = (payload, items) => {
 
 const getDistributionPaymentQuery = (distributionId) =>
   query(
-    collection(db, PAYMENT_COLLECTION),
+    collection(getDb(), PAYMENT_COLLECTION),
     where("distributionId", "==", distributionId)
   );
 
@@ -150,20 +162,36 @@ const upsertDistributionPayment = async ({
 };
 
 export const subscribeDistributions = (callback, onError) =>
-  onSnapshot(
-    distributionQuery,
-    (snapshot) => callback(snapshot.docs.map(toDistributionModel)),
-    onError
-  );
+  (() => {
+    try {
+      const database = getDb();
+      const distributionQuery = query(
+        collection(database, DISTRIBUTION_COLLECTION),
+        orderBy("eventDate", "desc")
+      );
+
+      return onSnapshot(
+        distributionQuery,
+        (snapshot) => callback(snapshot.docs.map(toDistributionModel)),
+        onError
+      );
+    } catch (error) {
+      callback([]);
+      if (onError) onError(error);
+      return () => {};
+    }
+  })();
 
 export const createDistribution = async (payload) => {
+  const database = getDb();
+
   const cleanedItems = sanitizeDistributionItems(payload.items);
   const { totalPrice, advanceAmount, remainingAmount } = getAmounts(
     payload,
     cleanedItems
   );
 
-  const distributionRef = doc(collection(db, DISTRIBUTION_COLLECTION));
+  const distributionRef = doc(collection(database, DISTRIBUTION_COLLECTION));
   await setDoc(distributionRef, {
     ...payload,
     distributionId: distributionRef.id,
@@ -194,13 +222,15 @@ export const createDistribution = async (payload) => {
 };
 
 export const updateDistribution = async (distributionId, payload) => {
+  const database = getDb();
+
   const cleanedItems = sanitizeDistributionItems(payload.items);
   const { totalPrice, advanceAmount, remainingAmount } = getAmounts(
     payload,
     cleanedItems
   );
 
-  await updateDoc(doc(db, DISTRIBUTION_COLLECTION, distributionId), {
+  await updateDoc(doc(database, DISTRIBUTION_COLLECTION, distributionId), {
     ...payload,
     items: cleanedItems,
     totalPrice,
@@ -229,12 +259,14 @@ export const receiveDistributionPendingPayment = async (
   distributionId,
   receivedAmount
 ) => {
+  const database = getDb();
+
   const amount = Number(receivedAmount);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("Enter a valid received amount.");
   }
 
-  const distributionRef = doc(db, DISTRIBUTION_COLLECTION, distributionId);
+  const distributionRef = doc(database, DISTRIBUTION_COLLECTION, distributionId);
   const distributionSnap = await getDoc(distributionRef);
   if (!distributionSnap.exists()) {
     throw new Error("Distribution record not found.");
@@ -280,12 +312,14 @@ export const receiveDistributionPendingPayment = async (
 };
 
 export const deleteDistribution = async (distributionId) => {
+  const database = getDb();
+
   const normalizedDistributionId = String(distributionId || "").trim();
   if (!normalizedDistributionId) {
     throw new Error("Distribution ID is missing.");
   }
 
-  const distributionRef = doc(db, DISTRIBUTION_COLLECTION, normalizedDistributionId);
+  const distributionRef = doc(database, DISTRIBUTION_COLLECTION, normalizedDistributionId);
   const distributionSnap = await getDoc(distributionRef);
 
   const distributionIdCandidates = [normalizedDistributionId];

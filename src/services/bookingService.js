@@ -12,20 +12,31 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, firebaseConfigReady, firebaseMissingKeys } from "./firebase";
 import { overlaps } from "../utils/time";
 
 const BOOKING_COLLECTION = "hallBookings";
+const PAYMENT_COLLECTION = "payments";
+
+const getFirebaseConfigError = () =>
+  new Error(
+    `Firebase is not configured. Missing .env keys: ${firebaseMissingKeys.join(
+      ", "
+    )}.`
+  );
+
+const getDb = () => {
+  if (!db || !firebaseConfigReady) {
+    throw getFirebaseConfigError();
+  }
+
+  return db;
+};
 
 const toBookingModel = (snap) => ({
   ...snap.data(),
   id: snap.id,
 });
-
-const bookingQuery = query(
-  collection(db, BOOKING_COLLECTION),
-  orderBy("eventDate", "desc")
-);
 
 const toMinutesFrom12Hour = (timeLabel) => {
   const match = String(timeLabel || "")
@@ -56,11 +67,25 @@ const sortBookings = (rows) =>
   });
 
 export const subscribeBookings = (callback, onError) =>
-  onSnapshot(
-    bookingQuery,
-    (snapshot) => callback(sortBookings(snapshot.docs.map(toBookingModel))),
-    onError
-  );
+  (() => {
+    try {
+      const database = getDb();
+      const bookingQuery = query(
+        collection(database, BOOKING_COLLECTION),
+        orderBy("eventDate", "desc")
+      );
+
+      return onSnapshot(
+        bookingQuery,
+        (snapshot) => callback(sortBookings(snapshot.docs.map(toBookingModel))),
+        onError
+      );
+    } catch (error) {
+      callback([]);
+      if (onError) onError(error);
+      return () => {};
+    }
+  })();
 
 export const hasBookingConflict = async ({
   eventDate,
@@ -68,8 +93,10 @@ export const hasBookingConflict = async ({
   endMinutes,
   ignoreId,
 }) => {
+  const database = getDb();
+
   const q = query(
-    collection(db, BOOKING_COLLECTION),
+    collection(database, BOOKING_COLLECTION),
     where("eventDate", "==", eventDate)
   );
   const snap = await getDocs(q);
@@ -89,6 +116,8 @@ export const hasBookingConflict = async ({
 };
 
 export const createBooking = async (payload) => {
+  const database = getDb();
+
   const conflict = await hasBookingConflict(payload);
   if (conflict) {
     throw new Error("Hall is already booked for the selected date/time slot.");
@@ -99,17 +128,17 @@ export const createBooking = async (payload) => {
     Number(payload.totalPrice || 0) - Number(payload.advanceAmount || 0)
   );
 
-  const bookingRef = await addDoc(collection(db, BOOKING_COLLECTION), {
+  const bookingRef = await addDoc(collection(database, BOOKING_COLLECTION), {
     ...payload,
     remainingAmount,
     createdAt: serverTimestamp(),
   });
 
-  await updateDoc(doc(db, BOOKING_COLLECTION, bookingRef.id), {
+  await updateDoc(doc(database, BOOKING_COLLECTION, bookingRef.id), {
     bookingId: bookingRef.id,
   });
 
-  await addDoc(collection(db, "payments"), {
+  await addDoc(collection(database, PAYMENT_COLLECTION), {
     bookingId: bookingRef.id,
     personName: payload.personName,
     eventDate: payload.eventDate,
@@ -123,16 +152,19 @@ export const createBooking = async (payload) => {
 };
 
 export const updateBookingStatus = async (bookingId, status) => {
-  await updateDoc(doc(db, BOOKING_COLLECTION, bookingId), { status });
+  const database = getDb();
+  await updateDoc(doc(database, BOOKING_COLLECTION, bookingId), { status });
 };
 
 export const receivePendingPayment = async (bookingId, receivedAmount) => {
+  const database = getDb();
+
   const amount = Number(receivedAmount);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error("Enter a valid received amount.");
   }
 
-  const bookingRef = doc(db, BOOKING_COLLECTION, bookingId);
+  const bookingRef = doc(database, BOOKING_COLLECTION, bookingId);
   const bookingSnap = await getDoc(bookingRef);
   if (!bookingSnap.exists()) {
     throw new Error("Booking not found.");
@@ -164,13 +196,13 @@ export const receivePendingPayment = async (bookingId, receivedAmount) => {
   await updateDoc(bookingRef, bookingUpdatePayload);
 
   const paymentQuery = query(
-    collection(db, "payments"),
+    collection(database, PAYMENT_COLLECTION),
     where("bookingId", "==", bookingId)
   );
   const paymentSnap = await getDocs(paymentQuery);
 
   if (paymentSnap.empty) {
-    await addDoc(collection(db, "payments"), {
+    await addDoc(collection(database, PAYMENT_COLLECTION), {
       bookingId,
       personName: booking.personName || "",
       eventDate: booking.eventDate || "",
@@ -199,12 +231,14 @@ export const receivePendingPayment = async (bookingId, receivedAmount) => {
 };
 
 export const deleteBooking = async (bookingId) => {
+  const database = getDb();
+
   const normalizedBookingId = String(bookingId || "").trim();
   if (!normalizedBookingId) {
     throw new Error("Booking ID is missing.");
   }
 
-  const bookingRef = doc(db, BOOKING_COLLECTION, normalizedBookingId);
+  const bookingRef = doc(database, BOOKING_COLLECTION, normalizedBookingId);
   const bookingSnap = await getDoc(bookingRef);
 
   const bookingIdCandidates = [normalizedBookingId];
@@ -217,7 +251,12 @@ export const deleteBooking = async (bookingId) => {
 
   const paymentSnaps = await Promise.all(
     bookingIdCandidates.map((candidateId) =>
-      getDocs(query(collection(db, "payments"), where("bookingId", "==", candidateId)))
+      getDocs(
+        query(
+          collection(database, PAYMENT_COLLECTION),
+          where("bookingId", "==", candidateId)
+        )
+      )
     )
   );
 
